@@ -1,120 +1,113 @@
+# ============================================
+# PREGUNTA 1 - MODELO BASE
+# ============================================
+
 import gurobipy as gp
 from gurobipy import GRB
 
+# -------------------------
+# Datos
+# -------------------------
 
-#Datos de entrada
+I = ["A", "B", "C"]          # Orígenes: A=Lisboa, B=Madrid, C=Turín
+J = ["1", "2", "3"]          # Destinos: 1=París, 2=Berlín, 3=Varsovia
 
-#Orígenes y destinos
-origins = ["A", "B", "C"]  # A: Lisboa, B: Madrid, C: Turín
-destinations = ["1", "2", "3"] # 1: París, 2: Berlín, 3: Varsovia
+# Oferta (mil Gb)
+s = {"A": 5, "B": 6, "C": 7}
 
-# Oferta
-oferta = {
-    "A": 5,
-    "B": 6,
-    "C": 7
-}
+# Demanda (mil Gb)
+d = {"1": 4, "2": 5, "3": 9}
 
-# Demanda
-demand = {
-    "1": 4,
-    "2": 5,
-    "3": 9
-}
-
-#Costes variables en céntimos €/MilGb
-cost_cents = {
+# Costes variables en céntimos €/MilGb
+cents = {
     ("A", "1"): 4, ("A", "2"): 3, ("A", "3"): 6,
     ("B", "1"): 7, ("B", "2"): 4, ("B", "3"): 9,
-    ("C", "1"): 9, ("C", "2"): 5, ("C", "3"): 2
+    ("C", "1"): 9, ("C", "2"): 5, ("C", "3"): 2,
 }
 
-#Se pasa de centimos/MilGb a €/MilGb
-cost = {(i, j): cost_cents[i, j] / 100.0 for (i, j) in cost_cents}
+# Conversión a €/MilGb
+c = {(i, j): cents[i, j] / 100.0 for (i, j) in cents}
 
-channel_capacity = 10   # MilGb por canal
-base_channel_cost = 50  # € por canal (los 4 primeros)
-extra_channel_increment = 15 # € adicionales si se usa el canal quinto extra
+Q = 10        # mil Gb por canal
+F = 50        # coste fijo por canal
+F_extra = 15  # recargo si usamos el 5º canal (pasa a 65)
 
-#Parámetros y variables
+# -------------------------
+# Modelo y variables
+# -------------------------
 
-m = gp.Model("DataMind_Base")
+m1 = gp.Model("P1_ModeloBase")
 
-# Flujo de datos (MilGb)
-x = m.addVars(origins, destinations, lb=0.0, name="x")
+x = m1.addVars(I, J, lb=0.0, name="x")                # x_ij
+y = m1.addVars(I, J, vtype=GRB.BINARY, name="y")      # y_ij
+y_plus = m1.addVar(vtype=GRB.BINARY, name="y_plus")   # y^+
 
-# Activación de canal entre i y j
-y = m.addVars(origins, destinations, vtype=GRB.BINARY, name="y")
+# -------------------------
+# Función objetivo
+# -------------------------
 
-# Variable binaria: uso del 5º canal
-y_extra = m.addVar(vtype=GRB.BINARY, name="y_extra")
-
-#Función objetivo
-
-m.setObjective(
-    gp.quicksum(cost[i, j] * x[i, j] for i in origins for j in destinations)
-    + base_channel_cost * gp.quicksum(y[i, j] for i in origins for j in destinations)
-    + extra_channel_increment * y_extra,
+m1.setObjective(
+    gp.quicksum(c[i, j] * x[i, j] for i in I for j in J)
+    + F * gp.quicksum(y[i, j] for i in I for j in J)
+    + F_extra * y_plus,
     GRB.MINIMIZE
 )
 
-#Restricciones
+# -------------------------
+# Restricciones
+# -------------------------
 
-#Capacidad por canal
-for i in origins:
-    for j in destinations:
-        m.addConstr(x[i, j] <= channel_capacity * y[i, j],
-                    name=f"cap_{i}_{j}")
+# Capacidad de cada canal: x_ij <= Q * y_ij
+for i in I:
+    for j in J:
+        m1.addConstr(x[i, j] <= Q * y[i, j],
+                     name=f"cap_{i}_{j}")
 
-#Oferta en cada origen
-for i in origins:
-    m.addConstr(
-        gp.quicksum(x[i, j] for j in destinations) <= oferta[i],
-        name=f"oferta{i}"
+# Oferta de cada almacén: sum_j x_ij <= s_i
+for i in I:
+    m1.addConstr(
+        gp.quicksum(x[i, j] for j in J) <= s[i],
+        name=f"oferta_{i}"
     )
 
-#Demanda en cada destino
-for j in destinations:
-    m.addConstr(
-        gp.quicksum(x[i, j] for i in origins) == demand[j],
-        name=f"demand_{j}"
+# Demanda de cada destino: sum_i x_ij = d_j
+for j in J:
+    m1.addConstr(
+        gp.quicksum(x[i, j] for i in I) == d[j],
+        name=f"demanda_{j}"
     )
 
-#Número máximo de canales
-m.addConstr(
-    gp.quicksum(y[i, j] for i in origins for j in destinations) <= 4 + y_extra,
-    name="num_channels"
+# Límite número de canales: sum y_ij <= 4 + y_plus
+m1.addConstr(
+    gp.quicksum(y[i, j] for i in I for j in J) <= 4 + y_plus,
+    name="limite_canales"
 )
 
-# Privacidad en Berlín:
-
-m.addConstr(
+# Privacidad Berlín: y_A2 + y_B2 <= 1
+m1.addConstr(
     y["A", "2"] + y["B", "2"] <= 1,
-    name="privacy_Berlin"
+    name="privacidad_Berlin"
 )
 
-#Optimización
+# -------------------------
+# Optimización y salida
+# -------------------------
 
+m1.optimize()
 
-m.optimize()
-
-#Mostrar solución
-
-if m.status == GRB.OPTIMAL:
-    print(f"Coste total mínimo = {m.objVal:.2f} €\n")
-
-    print("Flujos x_ij (MilGb):")
-    for i in origins:
-        for j in destinations:
-            if x[i, j].x > 1e-6:
-                print(f"  x[{i},{j}] = {x[i, j].x:.2f}")
-
+if m1.status == GRB.OPTIMAL:
+    print("\n--- Pregunta 1 ---")
+    print(f"Coste mínimo = {m1.objVal:.2f} €")
+    print("\nFlujos x_ij (mil Gb):")
+    for i in I:
+        for j in J:
+            if x[i, j].X > 1e-6:
+                print(f"x[{i},{j}] = {x[i, j].X:.2f}")
     print("\nCanales activos y_ij:")
-    for i in origins:
-        for j in destinations:
-            if y[i, j].x > 0.5:
-                print(f"  y[{i},{j}] = 1")
-
-    print(f"\n y_extra = {int(y_extra.x)}")
+    for i in I:
+        for j in J:
+            if y[i, j].X > 0.5:
+                print(f"y[{i},{j}] = 1")
+    print(f"\ny_plus = {int(y_plus.X)}")
 else:
-    print("El modelo que se ha dado no ha encontrado la solución óptima.")
+    print("No se encontró solución óptima en P1.")
