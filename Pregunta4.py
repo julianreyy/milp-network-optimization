@@ -109,7 +109,7 @@ for i in I_almacenes:
 # Demanda de cada destino 
 for j in J_destinos:
     m.addConstr(
-        gp.quicksum(x[i, j] for i in I) <= d[j],
+        gp.quicksum(x[i, j] for i in I) == d[j],
         name=f"demanda_{j}"
     )
 
