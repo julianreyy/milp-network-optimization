@@ -90,7 +90,7 @@ for j in J:
 
 # Número total de canales
 m.addConstr(
-    gp.quicksum(n[i, j] * y[i, j] for i in I for j in J) <= 4 + y_plus,
+    gp.quicksum(n[i, j] for i in I for j in J) <= 4 + y_plus,
     name="limite_canales"
 )
 
@@ -106,6 +106,16 @@ for i in I:
         m.addConstr(
             n[i, j] <= max_canales_par * y[i, j],
             name=f"enlace_{i}_{j}"
+        )
+
+# --- Enlace entre n e y (obliga y=1 => n>=1) ---
+for i in I:
+    for j in J:
+        # ya tenías: n[i,j] <= max_canales_par * y[i,j]
+        # añade la siguiente línea:
+        m.addConstr(
+            n[i, j] >= y[i, j],
+            name=f"vinculo_n_y_{i}_{j}"
         )
 
 # -------------------------
