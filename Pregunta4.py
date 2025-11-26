@@ -115,7 +115,7 @@ for j in J_destinos:
 
 # Límite del número total de canales
 m.addConstr(
-    gp.quicksum(n[i, j] * y[i, j] for i in I for j in J) <= 4 + y_plus,
+    gp.quicksum(n[i, j] for i in I for j in J) <= 4 + y_plus,
     name="limite_canales"
 )
 
@@ -150,6 +150,16 @@ m.addConstr(
     x["T", "1"] >= 0.5 * y["T", "1"],
     name="min_flujo_T_Paris"
 )
+
+# --- Enlace entre n e y (obliga y=1 => n>=1) ---
+for i in I:
+    for j in J:
+        # ya tenías: n[i,j] <= max_canales_par * y[i,j]
+        # añade la siguiente línea:
+        m.addConstr(
+            n[i, j] >= y[i, j],
+            name=f"vinculo_n_y_{i}_{j}"
+        )
 
 # -------------------------
 # Optimización y salida
