@@ -84,13 +84,13 @@ for i in I:
 # Demanda en cada destino
 for j in J:
     m.addConstr(
-        gp.quicksum(x[i, j] for i in I) == d[j],
+        gp.quicksum(x[i, j] for i in I) <= d[j],
         name=f"demanda_{j}"
     )
 
 # Número total de canales
 m.addConstr(
-    gp.quicksum(n[i, j] for i in I for j in J) <= 4 + y_plus,
+    gp.quicksum(n[i, j] * y[i, j] for i in I for j in J) <= 4 + y_plus,
     name="limite_canales"
 )
 
@@ -107,14 +107,6 @@ for i in I:
             n[i, j] <= max_canales_par * y[i, j],
             name=f"enlace_{i}_{j}"
         )
-
-# IIntegridad de Canales
-sum_y = gp.quicksum(y[i, j] for i in I for j in J)
-sum_n = gp.quicksum(n[i, j] for i in I for j in J)
-m.addConstr(
-    sum_y - sum_n == 0,
-    name="igual_suma_y_n"
-)
 
 # -------------------------
 # Optimización y salida
